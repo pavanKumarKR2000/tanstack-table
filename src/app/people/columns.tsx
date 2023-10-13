@@ -12,11 +12,21 @@ import {
 
 import { Person } from "@/people";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "lucide-react";
+import { ArrowUpDown, MoreHorizontal } from "lucide-react";
 
 export const columns: ColumnDef<Person>[] = [
   {
-    header: "ID",
+    header: ({ column }) => {
+      return (
+        <Button
+          variant="ghost"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          Person ID
+          <ArrowUpDown className="ml-2 h-4 w-4" />
+        </Button>
+      );
+    },
     accessorKey: "id",
   },
   {
@@ -48,7 +58,6 @@ export const columns: ColumnDef<Person>[] = [
     id: "actions",
     cell: ({ row }) => {
       const person = row.original;
-      const personId = person.id;
       const personName = `${person.first_name} ${person.last_name}`;
       return (
         <DropdownMenu>
