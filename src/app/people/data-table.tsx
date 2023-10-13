@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
-
 import {
   ColumnDef,
   ColumnFiltersState,
   SortingState,
+  VisibilityState,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -22,17 +21,35 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { downloadToExcel } from "@/lib/xlxs";
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
 }
 
-const PeopleDataTable = ({ columns, data }: DataTableProps<TData, TValue>) => {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+export function PeopleDataTable<TData, TValue>({
+  columns,
+  data,
+}: DataTableProps<TData, TValue>) {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [rowSelection, setRowSelection] = React.useState({});
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
 
   const table = useReactTable({
     data,
@@ -40,93 +57,130 @@ const PeopleDataTable = ({ columns, data }: DataTableProps<TData, TValue>) => {
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+
     state: {
       sorting,
       columnFilters,
+      columnVisibility,
+      rowSelection,
     },
   });
 
   return (
-    <div>
-      {/** search input */}
+    <div className="p-4">
+      {/* input */}
       <div className="flex items-center py-4">
         <Input
-          placeholder="Filter first name"
+          placeholder="Filter First names"
           value={
             (table.getColumn("first_name")?.getFilterValue() as string) || ""
           }
           onChange={(e) => {
-            table
-              .getColumn("first_name")
-              ?.setFilterValue(e.target.value as string);
+            table.getColumn("first_name")?.setFilterValue(e.target.value);
           }}
           className="max-w-sm"
         />
+
+        <Button onClick={() => downloadToExcel()} className="ml-4">
+          Export to Excel
+        </Button>
+        <ThemeToggle className="ml-4" />
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            <Button variant="outline" className="ml-4">
+              Columns
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {table
+              .getAllColumns()
+              .filter((column) => column.getCanHide())
+              .map((column) => {
+                return (
+                  <DropdownMenuCheckboxItem
+                    key={column.id}
+                    className="capitalize"
+                    checked={column.getIsVisible()}
+                    onCheckedChange={(value: boolean) => {
+                      column.toggleVisibility(!!value);
+                    }}
+                  >
+                    {column.id}
+                  </DropdownMenuCheckboxItem>
+                );
+              })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      {/** table */}
-      <div className="border rounded-md">
+
+      {/* table */}
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
+            {table.getHeaderGroups().map((headerGroup) => {
+              return (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id}>
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
+              );
+            })}
           </TableHeader>
+
           <TableBody>
             {table.getRowModel().rows?.length ? (
-              <>
-                {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext()
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </>
-            ) : (
-              <>
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <div className="flex items-center justify-center">
-                      Nothing to show
-                    </div>
-                  </TableCell>
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
                 </TableRow>
-              </>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell>No results</TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-      {/** pagination */}
-      <div className="flex items-center justify-center gap-x-2">
+      {/* pagination */}
+      <div className="flex items-center justify-start space-x-2 py-4">
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.previousPage()}
+          onClick={() => {
+            table.previousPage();
+          }}
           disabled={!table.getCanPreviousPage()}
         >
-          Prev
+          Previous
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => table.nextPage()}
+          onClick={() => {
+            table.nextPage();
+          }}
           disabled={!table.getCanNextPage()}
         >
           Next
@@ -134,6 +188,6 @@ const PeopleDataTable = ({ columns, data }: DataTableProps<TData, TValue>) => {
       </div>
     </div>
   );
-};
+}
 
 export default PeopleDataTable;
